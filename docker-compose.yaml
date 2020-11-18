@@ -1,0 +1,5 @@
+version: "3.8"
+services:
+  app:
+    build: docker/gocheck/
+    container_name: gocheck
