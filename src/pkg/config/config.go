@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclparse"
@@ -76,6 +75,6 @@ func ParseConfigFile(filePath string) Config {
 		log.Fatal(decodeDiags.Error())
 	}
 
-	fmt.Printf("%#v", configInstance)
+	//fmt.Printf("%#v", configInstance)
 	return configInstance
 }

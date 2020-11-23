@@ -1,5 +1,10 @@
 version: "3.8"
 services:
   app:
-    build: docker/gocheck/
+    build:
+      context: .
+      dockerfile: docker/gocheck/Dockerfile
     container_name: gocheck
+    stdin_open: true
+    tty: true
+    entrypoint: /bin/bash

@@ -1,4 +1,4 @@
-package shell
+package exec
 
 import (
 	"bytes"
@@ -18,7 +18,7 @@ func Check(command string, args []string) (int, string) {
 		if exiterr, ok := err.(*exec.ExitError); ok {
 			if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
 				exitCode = status.ExitStatus()
-				log.Printf("Exit Status: %d", exitCode)
+				//log.Printf("Exit Status: %d", exitCode)
 			}
 		} else {
 			log.Printf(out.String())
