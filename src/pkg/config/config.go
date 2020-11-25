@@ -17,11 +17,11 @@ type Config struct {
 	Remain   hcl.Body        `hcl:",remain"`
 }
 
-func (cfg Config) MergeServices(other Config) {
+func (cfg Config) ExtendServices(other Config) {
 	cfg.Services = append(cfg.Services, other.Services...)
 }
 
-func (cfg Config) MergeChecks(other Config) {
+func (cfg Config) ExtendChecks(other Config) {
 	cfg.Checks = append(cfg.Checks, other.Checks...)
 }
 
@@ -51,7 +51,8 @@ type CheckConfig struct {
 }
 
 
-func ParseConfigFile(filePath string) Config {
+func ParseConfigFile(filePath string, cliMode bool) Config {
+	var configInstance Config
 	var diags hcl.Diagnostics
 
 	parser := hclparse.NewParser()
@@ -60,47 +61,51 @@ func ParseConfigFile(filePath string) Config {
 
 	if parseDiags.HasErrors() {
 		diags = append(diags, parseDiags...)
-		wr := hcl.NewDiagnosticTextWriter(
-			os.Stdout,
-			parser.Files(),
-			78,
-			true,
-		)
-		_ = wr.WriteDiagnostics(diags)
-		log.Fatal(wr)
+		if cliMode {
+			wr := hcl.NewDiagnosticTextWriter(
+				os.Stdout,
+				parser.Files(),
+				78,
+				true,
+			)
+			_ = wr.WriteDiagnostics(diags)
+		} else {
+			// Need to handle diags here
+			log.Fatal(diags)
+		}
 	}
 
-	var configInstance Config
 	decodeDiags := gohcl.DecodeBody(f.Body, nil, &configInstance)
 	if decodeDiags.HasErrors() {
 		diags = append(diags, decodeDiags...)
-		wr := hcl.NewDiagnosticTextWriter(
-			os.Stdout,
-			parser.Files(),
-			78,
-			true,
-		)
-		_ = wr.WriteDiagnostics(diags)
-		log.Fatal(decodeDiags.Error())
+		if cliMode {
+			wr := hcl.NewDiagnosticTextWriter(
+				os.Stdout,
+				parser.Files(),
+				78,
+				true,
+			)
+			_ = wr.WriteDiagnostics(diags)
+		} else {
+			log.Fatal(decodeDiags.Error())
+		}
 	}
-
-	//fmt.Printf("%#v", configInstance)
 	return configInstance
 }
 
-func getConfigRootDir() string {
+func GetConfigRootDir() (string, error) {
 	currentDir, err := os.Getwd()
-	if err == nil {
-		log.Fatalf("unable to resolve current working directory: %q", err)
+	if err != nil {
+		return "", err
 	}
 	path := os.Getenv("GOCHECK_CONFIG_DIR")
-	if path != "" {
+	if path == "" {
 		path = currentDir
 	}
-	return path
+	return path, nil
 }
 
-func walkConfigDirs(root string, ext string) ([]string, error) {
+func WalkConfigDirs(root string, ext string) ([]string, error) {
 	var matches []string
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error{
 		if err != nil {
@@ -118,18 +123,21 @@ func walkConfigDirs(root string, ext string) ([]string, error) {
 	return matches, nil
 }
 
-func ParseConfigFiles() Config {
-	configRootDir := getConfigRootDir()
-	configFiles, err := walkConfigDirs(configRootDir, ".hcl")
+func GetParsedConfigFiles() Config {
+	configRootDir, err := GetConfigRootDir()
+	if err != nil {
+		log.Fatalf("error while looking for configuration directory: %q", err)
+	}
+	configFiles, err := WalkConfigDirs(configRootDir, ".hcl")
 	if err != nil {
 		log.Fatalf("error when locating config files: %q", err)
 	}
 
 	var rootConfig Config
 	for _, configFile := range configFiles {
-		subConfig := ParseConfigFile(configFile)
-		rootConfig.MergeServices(subConfig)
-		rootConfig.MergeChecks(subConfig)
+		anotherConfig := ParseConfigFile(configFile, false)
+		rootConfig.ExtendServices(anotherConfig)
+		rootConfig.ExtendChecks(anotherConfig)
 	}
 	return rootConfig
 }
