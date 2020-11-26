@@ -52,11 +52,19 @@ func (s *State) Save() error {
 		return err
 	}
 
-	f.Sync()
+	err = f.Sync()
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
+// Load reads state information from the file or returns an error.
 func (s *State) Load() error {
+	// If fields map hasn't been initialized, go ahead and do so
+	if s.Fields == nil {
+		s.Fields = make(map[string]*StateField)
+	}
 	data, err := ioutil.ReadFile(s.Location)
 	if err != nil {
 		return err
