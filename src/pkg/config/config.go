@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Config is the main configuration built from config
@@ -51,7 +52,7 @@ type CheckConfig struct {
 }
 
 
-func ParseConfigFile(filePath string, cliMode bool) Config {
+func ParseConfigFile(filePath string, cliMode bool) (Config, map[string]*hcl.File, hcl.Diagnostics) {
 	var configInstance Config
 	var diags hcl.Diagnostics
 
@@ -69,10 +70,8 @@ func ParseConfigFile(filePath string, cliMode bool) Config {
 				true,
 			)
 			_ = wr.WriteDiagnostics(diags)
-		} else {
-			// Need to handle diags here
-			log.Fatal(diags)
 		}
+		return configInstance, parser.Files(), diags
 	}
 
 	decodeDiags := gohcl.DecodeBody(f.Body, nil, &configInstance)
@@ -86,11 +85,9 @@ func ParseConfigFile(filePath string, cliMode bool) Config {
 				true,
 			)
 			_ = wr.WriteDiagnostics(diags)
-		} else {
-			log.Fatal(decodeDiags.Error())
 		}
 	}
-	return configInstance
+	return configInstance, parser.Files(), diags
 }
 
 func GetConfigRootDir() (string, error) {
@@ -123,7 +120,7 @@ func WalkConfigDirs(root string, ext string) ([]string, error) {
 	return matches, nil
 }
 
-func GetParsedConfigFiles() Config {
+func GetParsedConfigFiles(cliMode bool) Config {
 	configRootDir, err := GetConfigRootDir()
 	if err != nil {
 		log.Fatalf("error while looking for configuration directory: %q", err)
@@ -135,7 +132,15 @@ func GetParsedConfigFiles() Config {
 
 	var rootConfig Config
 	for _, configFile := range configFiles {
-		anotherConfig := ParseConfigFile(configFile, false)
+		anotherConfig, files, diags := ParseConfigFile(configFile, cliMode)
+		if 0 < len(diags) {
+			var keys []string
+			for k := range files {
+				keys = append(keys, k)
+			}
+			keyString := strings.Join(keys, ", ")
+			log.Printf("Files not added to running config due to errors: %q", keyString)
+		}
 		rootConfig.ExtendServices(anotherConfig)
 		rootConfig.ExtendChecks(anotherConfig)
 	}

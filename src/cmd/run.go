@@ -23,7 +23,7 @@ will be run on the machine in which this command is run.`,
 			log.Printf("No config file identified, will use default config file.")
 		}
 
-		configInstance := config.ParseConfigFile(fileName)
+		configInstance, _, _ := config.ParseConfigFile(fileName, true)
 
 		for _, service := range configInstance.Services {
 			check := service.Check
