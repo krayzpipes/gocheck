@@ -1,3 +1,6 @@
+/*
+Package config handles configuration logistics for gocheck.
+*/
 package config
 
 import (
@@ -10,48 +13,38 @@ import (
 	"strings"
 )
 
+type CronType string
+
 // Config is the main configuration built from config
 // files.
 type Config struct {
-	Services []ServiceConfig `hcl:"service,block"`
-	Checks   []CheckConfig   `hcl:"check,block"`
-	Remain   hcl.Body        `hcl:",remain"`
-}
-
-func (cfg Config) ExtendServices(other Config) {
-	cfg.Services = append(cfg.Services, other.Services...)
+	Checks []CheckConfig `hcl:"check,block"`
+	Remain hcl.Body      `hcl:",remain"`
 }
 
 func (cfg Config) ExtendChecks(other Config) {
 	cfg.Checks = append(cfg.Checks, other.Checks...)
 }
 
-// ServiceConfig maps a check to the devices
+// CheckConfig maps a check to the devices or applications
 // the check should apply to.
-type ServiceConfig struct {
-	Type    string            `hcl:"type,label"`
-	Name    string            `hcl:"name,label"`
-	ApplyTo []string          `hcl:"apply_to"`
-	Check   ServiceCheckBlock `hcl:"check,block"`
+type CheckConfig struct {
+	Type    string         `hcl:"type,label"`
+	Name    string         `hcl:"name,label"`
+	ApplyTo []string       `hcl:"apply_to"`
+	Cron    string         `hcl:"cron,optional"`
+	Exec    CheckExecBlock `hcl:"exec,block"`
 }
 
-// ServiceCheckBlock holds information about the
-// runner and the arguments passed to the runner
-// for a specific check.
-type ServiceCheckBlock struct {
-	Name string   `hcl:"name"`
+// CheckExecBlock holds information about the
+// executable and arguments needed to perform
+// the check.
+type CheckExecBlock struct {
+	Path string   `hcl:"path"`
 	Args []string `hcl:"args"`
 }
 
-// CheckConfig holds information on the
-// check to be performed
-type CheckConfig struct {
-	Type       string `hcl:"type,label"`
-	Name       string `hcl:"name,label"`
-	Executable string `hcl:"executable"`
-}
-
-
+// ParseConfigFile looks for and parses HCL files used by Gocheck.
 func ParseConfigFile(filePath string, cliMode bool) (Config, map[string]*hcl.File, hcl.Diagnostics) {
 	var configInstance Config
 	var diags hcl.Diagnostics
@@ -90,6 +83,8 @@ func ParseConfigFile(filePath string, cliMode bool) (Config, map[string]*hcl.Fil
 	return configInstance, parser.Files(), diags
 }
 
+// GetConfigRootDir Gets the configured root directory for the
+// gocheck configs.
 func GetConfigRootDir() (string, error) {
 	currentDir, err := os.Getwd()
 	if err != nil {
@@ -102,9 +97,11 @@ func GetConfigRootDir() (string, error) {
 	return path, nil
 }
 
+// Recursively walks a directory and looks for gocheck configuration
+// files (ending in `.hcl`)
 func WalkConfigDirs(root string, ext string) ([]string, error) {
 	var matches []string
-	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error{
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -120,6 +117,8 @@ func WalkConfigDirs(root string, ext string) ([]string, error) {
 	return matches, nil
 }
 
+// GetParsedConfigFiles gathers configuration and returns a
+// configuration object to be used by GoCheck.
 func GetParsedConfigFiles(cliMode bool) Config {
 	configRootDir, err := GetConfigRootDir()
 	if err != nil {
@@ -141,7 +140,6 @@ func GetParsedConfigFiles(cliMode bool) Config {
 			keyString := strings.Join(keys, ", ")
 			log.Printf("Files not added to running config due to errors: %q", keyString)
 		}
-		rootConfig.ExtendServices(anotherConfig)
 		rootConfig.ExtendChecks(anotherConfig)
 	}
 	return rootConfig
